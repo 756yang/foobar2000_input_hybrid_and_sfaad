@@ -1,0 +1,214 @@
+foobar2000 v1.4 SDK 说明
+
+一、兼容性
+用之组件兼容1.3与1.4系列。不兼容更早版本，不保证兼容所有未来版本，虽不毁新效而尽适之。
+知用之以供1.4之效而维1.3之性。
+可择其API，改SDK/foobar2000.h之FOOBAR2000_TARGET_VERSION，值78以1.3，79以1.4也。
+
+二、Microsoft Visual Studio 兼容性
+是含Visual Studio 2017之项目
+Visual C整程序优化之劣迹
+  版本2012以上Visual Studio出错以默认release设置于foobar2000代码，详见forum thread。以/d2notypeopt选项编译受影响代码（使用foobar2000 SDK类之众foobar2000 SDK代码）而缓之。是设为默认于SDK提供之项目文件，请确保你可设之于己之项目。
+  若你知好法以改源码而非编译参数，请会知，公之于众以益用者。
+"virtual memory range for PCH exceeded"错误
+  照例，foobar2000代码用#include包含所有单个SDK和实用程序头于预编译头（PCH）文件。是以为Visual Studio配置问题，如PCH成负荷之重。
+  SDK已正之非需头文件包含去之，然此误见于斯。
+  若你见之，吾议此：
+  ATLHelpers：不包含ATLHelpers/ATLHelpers.h而用ATLHelpersLean.h代之，附以需者。
+  Helpers：不包含helpers.h而用需代之，多数声明功能但需特定部分。
+
+三、版本1.4注记：
+1、命名空间清理
+  或旧而不一致之代码，清之。各种bit_array类今在所属pfc命名空间。请用pfc::bit_array于新代码。若你欲用bit_array而无pfc::前缀，以"using pfc::bit_array"于头文件。
+2、解码器
+  1)调用解码器
+    每个新解码器现皆提供get_guid()和get_name()以让用户择调用次序及禁用之。于此，你可不需遍历input_entry于代码，而多数已有组件因此可以期望工作于所有1.4前旧版。
+    多数情况，你无需事之，除非有直访input_entry实例方法。
+      input_manager
+        实例化任何输入相关类之正法乃调用input_manager也，其管理解码器开放且尊用户之良好设置。调任何助于打开解码器、读取标签等方法于SDK，若可（1.4版）亦调input_manager，否则退之遍历input_entry服务（1.3版）。
+      input_entry楔子（填充程序）
+        若你组件API小于79（是默认78），所有你企图遍历input_entry服务将返回重定向所有调用到input_manager之楔子服务，你实际未可遍历input_entry服务。
+        是维已有组件事如所期。
+        若你组件API79（意指不工作于1.3版），楔子不安装以你组件知之。
+  2)实现解码器
+    许多新输入方法或强加于所有代码，尤为告解码器名及GUID，已有代码非此不可编译。而或今将提供凡者于输入类且将留白于多数实现，引入input_stubs类以助之。在旧SDK，你之输入类非派生于他者，现议派生于input_stubs以免自己之凡者。
+      指定支持接口
+        你现可控制你实例之解码器API级别支持于你之输入类而非用多参数input_factory类。
+        提供input_stubs类以此为便：
+        typedef input_decoder_v4 interface_decoder_t;
+        typedef input_info_reader interface_info_reader_t;
+        typedef input_info_writer interface_info_writer_t;
+        覆之于你之输入类以表支持接口。
+        例如，若你之输入支持remove_tags()，表明你实现input_info_writer_v2：
+        typedef input_info_writer_v2 interface_info_writer_t;
+3、动态运行时
+  版本1.4，foobar2000编译以动态Visual C运行时和安装时重新分配之Visual C运行库，必要时置之于其安装目录。此优点：更小组件DLL、减少大量组件DLL加载之限。
+  是SDK配置为静态运行时于默认，以兼容于1.3版本。若你组件仅为1.4系列，你可启用动态运行时替代，确保更正所有项目设置。
+4、service_query()
+  若你不知其为，你或不顾你组件不受之于此。
+  是方法因性能原因再设计，旧法（实现每个接口以FB2K_MAKE_SERVICE_INTERFACE宏）致每单个class_guid 类于整个SDK包含于你DLL中，咎于微软链接器之奇行。
+  是函数今提供以service_impl_* 类，故其仅显为你代码实现和生成之服务。
+  默认实现调用新增静态方法handle_service_query()，在service_base中实现来检查所有支持接口以遍历派生类链。
+  若你欲覆之，建一函数以配之于你类且调之以代：
+  class myClass : public service_base {
+  public:
+      static bool handle_service_query(service_ptr & out, const GUID & guid, myClass * in) {
+          if ( guid == myClassGUID ) {
+              out = in; return true;
+          }
+          return false;
+      }
+  };
+  多重继承
+    以上改变service_query()实现规则显而坏已有继承自多服务类和提供常规service_query()之代码。
+    虽用之不议且少之，一新模板加之以解：service_multi_inherit<class1, class2>.
+    你可用之以免提供service_query()代码且许善之若service_query()含义再易。
+
+四、版本1.3注记：
+其1.3版本用异于旧版之元数据库行为语义，来改善多线程操作性能以减少全局元数据库锁定之时费。
+任何方法：
+  锁定元数据库，database_lock()等。
+  检索元数据库信息之指向指针，get_info_locked()方式。
+今皆不该但为向后兼容，不应用于新代码。
+是应之你改已有用以得音轨信息之代码为用新get_info_ref()方式方法以更佳性能于是法有极小开销且应无需特意用之于多并发线程。
+
+五、基本使用
+每个组件必须链接到：
+  foobar2000_SDK项目（包含服务声明和各种服务尤是helper代码）
+  foobar2000_component_client项目（包含DLL之入口点）
+  shared.dll（各种helper代码，主要win32函数包装以UTF-8字符串）
+  PFC（non-OS-specific helper 类库）
+可选地，组件可用各种非关键代码之helper库，其在各组件重用：
+  foobar2000_SDK_helpers，各种helper代码共用于其组件。
+  foobar2000_ATL_helpers，另一各种helper代码共用于其组件，需WTL.
+Foobar2000_SDK、foobar2000_component_client 和PFC皆包含于源代码表单，你可链接之以加之且使用依赖。为链接到shared.dll，你需手动加“shared.lib”于链接器输入中。
+组件代码应包含以下头文件：
+  foobar2000.h来自SDK，不直接从SDK包含其他头文件，其仅引用于foobar2000.h，是亦包含PFC头文件和shared.dll helper之声明头文件。
+  可选：helpers.h来自helpers路径（foobar2000_SDK_helpers项目），各种helper代码共用于其组件。
+  可选：ATLHelpers.h来自ATLHelpers路径（foobar2000_ATL_helpers项目），另一各种helper代码共用于其组件，需WTL. 注意ATLHelpers.h已包含SDK/foobar2000.h和helpers/helpers.h故你可用以替代其他包含行。
+
+六、组件结构
+组件乃实现一个或多个入口点服务和与其他组件提供服务合作之DLL也。
+  1、服务
+  服务类型是一接口类，直接或不直接派生于service_base类。服务类型类必不能有任何数据成员，其仅有虚方法（于服务实现覆之），建helper非虚方法以虚方法、静态helper方法和常量/枚举。每个服务接口类必有静态class_guid成员，用于标识在枚举服务或查询支持之功能。一个服务类型声明应为带公共virtual/helper/static方法之类，且以FB2K_MAKE_SERVICE_INTERFACE() / FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT()宏实现之标准服务行为，此外，class_guid需定义于类声明之外（如，const GUID someclass::class_guid = {….};）。注意多数组件不声明其服务类型，其仅实现在于SDK之声明者。
+  一个服务实现是派生于相关服务类型类，实现由服务类型类声明之虚方法。注意服务实现类未实现声明自service_base之虚方法，其实现以服务类型声明框架（service_query）或以实例化框架（service_add_ref / service_release）。服务实现类实例化以service_factory模板于入口点服务（见下文）或以service_impl_t模板和operator new：”myserviceptr = new service_impl_t<myservice_impl>(params);”.
+  2、入口点服务
+  入口点服务类型是可用service_factory模板注册之服务类型之特例，後以服务系统之任一点访问（除DLL启动/关闭代码，如静态对象构造/析构函数之代码）。入口点服务类型类必直派生于service_base.
+  注册可访问之入口点服务以：
+    服务类型之于实现注册之可变数：service_enum_t<T>模板、service_class_helper_t<T>模板等等。
+    service_enum_t<someclass> e; service_ptr_t<someclass> ptr; while(e.next(ptr)) ptr->dosomething();
+    服务类型之于单个常在实现注册，如核心服务：playlist_manager、使用someclass::get()等等。
+    auto api = someclass::get(); api->dosomething(); api->dosomethingelse();
+    使用每个服务类型定义之静态helper函数，如someclass::g_dosomething()，其内部使用相关服务枚举方法。
+  入口点服务类型必用FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT()宏来实现标准入口点服务行为，反而其他服务类型使用FB2K_MAKE_SERVICE_INTERFACE()宏代之。
+  你可注册你之入口点服务实现以service_factory_t或service_factory_single_t模板，两者之别，前者按需实例化类，而後者保留一个静态实例并在请求时返回其引用，後者虽快而仅用于非每个实例成员数据需维护。每个service_factory_t / service_factory_single_t实例应是静态变量，如："static service_factory_t<myclass> g_myclass_factory;".
+  某些服务类型要求自定义service_factory helper 模板以替代标准service_factory_t / service_factory_single_t模板，见特定服务类型之文档以为有关注册之确切信息。
+  典型入口点服务实现如下：
+  class myservice_impl : public myservice {
+  public:
+      void dosomething() {....};
+      void dosomethingelse(int meh) {...};
+  };
+  static service_factory_single_t<myservice_impl> g_myservice_impl_factory;
+  3、服务扩展
+  附加方法可加于任何服务类型，经声明一个派生于你所想扩展之新服务类型类。举例：
+  class myservice : public service_base { public: virtual void dosomething() = 0; FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(myservice); };
+  class myservice_v2 : public myservice { public: virtual void dosomethingelse() = 0; FB2K_MAKE_SERVICE_INTERFACE(myservice_v2, myservice); };
+  如此，要查询myservice实例是否为myservice_v2并检索其指针，用service_query之功能：
+  service_ptr_t<myservice> ptr;
+  (...)
+  service_ptr_t<myservice_v2> ptr_ex;
+  if (ptr->service_query_t(ptr_ex)) { /* ptr_ex is a valid pointer to myservice_v2 interface of our myservice instance */ (...) }
+  else {/* this myservice implementation does not implement myservice_v2 */ (...) }
+  4、自动指针模板使用
+  在执行多数服务操作时，service_ptr_t<T>模板应使用而非直接访问服务指针，其自动管理引用计数器调用，以确保不再引用时删除此服务对象。
+  为方便，所有服务类之myclass::ptr皆定为service_ptr_t<myclass>.
+  当使用核心fb2k服务之指针，就用C++11 auto 关键字和someclass::get()，如：auto myAPI = playlist_manager::get();
+  5、异常使用
+  多数API函数用C++异常以示故障情况。所有使用异常之类必派生于std::exception（定pfc::exception为之），此设计允许各种代码之实例使用单个catch()行以示人可读之问题描述。
+  另外，特定异常之子类定义以用于特定情况，如exception_io为I/O错误。结果是，你必须提供异常处理于任何可能失败之I/O代码，除非特定情况下调用上下文已处理异常（如输入实现代码，任何异常皆应递于调用上下文，由于异常乃输入API之部分）。
+  实现全局回调服务如playlist_callback、playback_callback或library_callback必不可抛未处理之异常，于此时之未知（应是应用终止）。
+  6、存储配置
+  为创建条目于配置文件，你必实例化一些派生于cfg_var类之对象。是可为预定义类（cfg_int、cfg_string等等）或你之实现相关方法之类。
+  每个cfg_var实例皆分配一GUID，以标识其配置文件条目。此GUID递于其构造器（其必实现之，常以供之受GUID之构造器且递之于cfg_var构造器）。
+  注意cfg_var对象仅可静态实例化（直接为静态对象或为其他静态对象之成员）。另外，你可创建可访问其他组件之配置数据对象，以config_object服务实现。一些标准配置变量亦可以config_object接口访问之。
+  7、使用全局回调服务
+  此SDK提供之多服务类允许你组件接受各种事件之通知：
+    file_operation_callback，跟踪文件move/copy/delete操作。
+    library_callback，跟踪媒体库内容改变。
+    metadb_io_callback，跟踪标签读/写操作更改缓存/显示之媒体信息。
+    play_callback，跟踪回放相关事件。
+    playback_statistics_collector，收集已播放音轨信息。
+    playlist_callback、playlist_callback_single，跟踪播放列表改变（最後活动之音轨播放列表改变）。
+    playback_queue_callback，跟踪回放队列改变。
+    titleformat_config_callback，跟踪标题格式配置改变
+    ui_drop_item_callback，过滤掉UI中条目。
+  所有全局回调仅运作于主应用程序线程，允许与windows GUI简单协作，例如，你可直接从playlist_callback实现中重绘播放列表视图窗口。
+    全局回调递归问题
+      合理调用全局回调是受限。举例，你不可修改播放列表于播放列表回调，是以其他注册之回调跟踪播放列表改变而未知之正在处理。
+      你不可进入模式消息循环于内部全局回调，是以其允许任何不相关代码（队列消息、用户输入等）执行，而不知之全局回调也。某些全局API方法如metadb_io::load_info_multi或threaded_process::run_modal调用时进入模式循环。使用main_thread_callback服务以避之并推迟问题代码执行。
+      当处理跨线程SendMessage()之消息时，你应避免发射跨线程SendMessage()于全局回调，如同执行任何分派全局回调之操作。如此导致罕见不需要之递归，SendMessage()调用将阻塞调用线程且立即处理任何传入之跨线程SendMessage()消息。若你在处理之且需执行此操作，用PostMessage()或main_thread_callback以延迟之。
+
+七、服务类设计指导（高级）
+本章描述设计服务类型类之详事。由于99%组件仅实现已有服务类型而非加入自身跨DLL通信协议，你许可跳过本章。
+  1、跨DLL安全
+  要义是所有函数参数使用于服务之虚方法为跨DLL安全也（不依赖于编译器特定或运行时特定行为，故无不期望行为发生于不同编译器/运行时建立之代码调用）。以成之，任何类传递皆为可随不同编译器/运行时变化之无结构简单对象（即，确保任何数据块释放于分配之侧），易成之法为减少所有复杂数据对象或类传递到虚方法接口，且以隐藏实现细节于被调方。举例，使用pfc::string_base&为函数参数以返回可变长度字符串。
+  2、入口点服务效率
+  当设计入口点服务接口意指多个不同实现时，你应考虑使之可为其所有实现使用service_factory_single_t（即无每个实例成员数据），如：移动需要多实例操作之功能于入口点服务方法之一按需创建之分离之服务类型类。例如：
+  class myservice : public service_base {
+  public:
+      //this method accesses per-instance member data of the implementation class
+      virtual void workerfunction(const void * p_databuffer,t_size p_buffersize) = 0;
+      //this method is used to determine which implementation can be used to process specific data stream.
+      virtual bool queryfunction(const char * p_dataformat) = 0;
+
+      FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(myservice);
+  };
+  (...)
+  service_ptr_t<myservice> findservice(const char * p_dataformat) {
+      service_enum_t<myservice> e; service_ptr_t<myservice> ptr;
+      //BOTTLENECK, this dynamically instantiates the service for each query.
+      while(e.next(ptr)) {
+          if (ptr->queryfunction(p_dataformat)) return ptr;
+      }
+      throw exception_io_data();
+  }
+  应改为：
+  //no longer an entrypoint service - use myservice::instantiate to get an instance instead.
+  class myservice_instance : public service_base {
+  public:
+      virtual void workerfunction(const void * p_databuffer,t_size p_buffersize) = 0;
+      FB2K_MAKE_SERVICE_INTERFACE(myservice_instance,service_base);
+  };
+
+  class myservice : public service_base {
+  public:
+      //this method is used to determine which implementation can be used to process specific data stream.
+      virtual bool queryfunction(const char * p_dataformat) = 0;
+      virtual service_ptr_t<myservice_instance> instantiate() = 0;
+      FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(myservice);
+  };
+
+  template<typename t_myservice_instance_impl>
+  class myservice_impl_t : public myservice {
+  public:
+      //implementation of myservice_instance must provide static bool g_queryformatfunction(const char*);
+      bool queryfunction(const char * p_dataformat) {return t_myservice_instance_impl::g_queryfunction(p_dataformat);}
+      service_ptr_t<myservice_instance> instantiate() {return new service_impl_t<t_myservice_instance_impl>();}
+  };
+
+  template<typename t_myservice_instance_impl> class myservice_factory_t :
+      public service_factory_single_t<myservice_impl_t<t_myservice_instance_impl> > {};
+  //usage: static myservice_factory_t<myclass> g_myclass_factory;
+
+  (...)
+
+  service_ptr_t<myservice_instance> findservice(const char * p_dataformat) {
+      service_enum_t<myservice> e; service_ptr_t<myservice> ptr;
+      //no more bottleneck, enumerated service does not perform inefficient operations when requesting an instance.
+      while(e.next(ptr)) {
+          //"inefficient" part is used only once, with implementation that actually supports what we request.
+          if (ptr->queryfunction(p_dataformat)) return ptr->instantiate();
+      }
+      throw exception_io_data();
+  }
